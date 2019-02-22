@@ -1,0 +1,72 @@
+#ifndef __MCIH_NEIGHBOR_H_
+#define __MCIH_NEIGHBOR_H_
+
+#include "ns3/simulator.h"
+#include "ns3/timer.h"
+#include "ns3/ipv4-address.h"
+#include "ns3/callback.h"
+#include "ns3/wifi-mac-header.h"
+#include "ns3/arp-cache.h"
+
+namespace ns3{
+  namespace mcih{
+    class RoutingProtocol;
+    class Neighbors{
+      public:
+        struct Neighbor {
+          Ipv6Address neighbor_address;
+          Mac48Address hardware_address;
+          Time expire_time;
+          bool close;
+
+          Neighbor (Ipv6Address ip, Mac48Address mac, Time t) :
+            neighbor_address (ip), hardware_address (mac), expire_time (t),
+            close (false) {
+            }
+        };
+        struct CloseNeighbor {
+          bool operator() (const Neighbors::Neighbor & nb) const {
+            return ((nb.expire_time < Simulator::Now ()) || nb.close);
+          }
+        };
+
+        Neighbors( Time delay);
+        virtual ~Neighbors()= 0;
+        Time GetExpireTime( Ipv6Address addr);
+        bool IsNeighbor( Ipv6Address addr);
+        void Update (Ipv6Address addr, Time expire);
+        void Purge();
+        void ScheduleTimer();
+        void Clear(){ neighbor.clear(); }
+        void AddArpCache( Ptr< ArpCache> arp);
+        void DelArpCache( Ptr<ArpCache> arp);
+        Callback<void, WifiMacHeader const &> GetTxErrorCallback () const { return m_txErrorCallback; }
+        void SetCallback (Callback<void, Ipv6Address> cb);
+        Callback< void, Ipv6Address> GetCallBack() const{ return handle_link_failure;}
+      private:
+        Callback<void, Ipv6Address> handle_link_failure;
+        Callback<void, WifiMacHeader const &> m_txErrorCallback;
+        Timer m_ntimer;
+        std::vector< Neighbor> neighbor;
+        std::vector< Ptr<ArpCache> > m_arp;
+        Mac48Address LookupMacAddress( Ipv6Address);
+        void ProcessTxError( WifiMacHeader const &);
+    };
+    class NeighborNodes: public Neighbors{
+      public:
+        NeighborNodes( Time delay): Neighbors( delay){
+        }
+        virtual ~NeighborNodes(){
+        }
+    };
+    class NeighborClusterHeads: public Neighbors{
+      public:
+        NeighborClusterHeads( Time delay): Neighbors( delay){
+        }
+        virtual ~NeighborClusterHeads(){
+        }
+    };
+  }
+}
+
+#endif // __MCIH_NEIGHBOR_H_
